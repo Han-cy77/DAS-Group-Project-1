@@ -1,0 +1,326 @@
+---
+title: "Group_27"
+format: 
+  html:
+    embed-resources: true
+    code-tools: true
+  pdf: default
+editor: visual
+---
+
+# Stage 1 Source an interesting dataset
+
+## 1. Import data and packages
+
+```{r}
+#| message: false
+library(dplyr)
+library(ggplot2)
+#Annual articles published in scientific and technical journals per million people
+article_per_million_people <- read.csv('https://ourworldindata.org/grapher/scientific-publications-per-million.csv?v=1&csvType=full&useColumnShortNames=true') 
+#Data source: World Bank (2023); United Nations (2022)
+
+#Annual patent applications per million people 
+patent_per_million_people <- read.csv('https://ourworldindata.org/grapher/patent-applications-per-million.csv?v=1&csvType=full&useColumnShortNames=true') 
+#Data source: World Bank (2023); United Nations (2022)
+
+#Number of Research & Development researchers per million people 
+researcher_per_million_people <- read.csv('https://ourworldindata.org/grapher/researchers-in-rd-per-million-people.csv?v=1&csvType=full&useColumnShortNames=false') 
+#Data source: UNESCO Institute for Statistics (2025)
+
+#Research & Development spending as a share of GDP 
+RD_spending_proportion <- read.csv('https://ourworldindata.org/grapher/research-spending-gdp.csv?v=1&csvType=full&useColumnShortNames=false') 
+#Data source: UNESCO Institute for Statistics (2025)
+
+#Annual patent applications related to AI per million people 
+patent_ai_per_million_people <- read.csv('https://ourworldindata.org/grapher/artificial-intelligence-patents-submitted-per-million.csv?v=1&csvType=full&useColumnShortNames=true') 
+#Data source: Center for Security and Emerging Technology (2024); Population based on various sources (2024)
+
+#World Bank income groups
+income_group <- read.csv('https://ourworldindata.org/grapher/world-bank-income-groups.csv?v=1&csvType=full&useColumnShortNames=true')
+#Data source: World Bank (2024)
+```
+
+## 2. Merge data based on the same columns
+
+```{r}
+#| message: false
+merged_data <- Reduce(function(x, y) merge(x, y, by = c("Entity", "Code", "Year"), all = TRUE),
+                      list(article_per_million_people,
+                           patent_per_million_people,
+                           researcher_per_million_people,
+                           RD_spending_proportion,
+                           patent_ai_per_million_people,
+                           income_group))
+```
+
+## 3. Remove blank data and update the index and column names
+
+```{r}
+#| message: false
+#remove blank data and update index
+cleaned_data <- na.omit(merged_data) 
+row.names(cleaned_data) <-NULL
+#update column names
+cleaned_data <- cleaned_data %>%
+  rename(
+    article_per_million_people = articles_per_million,
+    patent_per_million_people = patents_per_million,
+    researcher_per_million_people = Researchers.in.R.D..per.million.people.,
+    RD_spending_proportion = Research.and.development.expenditure....of.GDP.,
+    patent_ai_per_million_people = num_patent_applications_per_mil__field_all
+  )
+```
+
+## 4. Check data
+
+```{r}
+#| message: false
+head(cleaned_data)
+str(cleaned_data)
+summary(cleaned_data)
+```
+
+## 5. Questions of interest
+
+1.  Does R&D investment in East Asian countries have a significant impact on patent applications related to AI?
+2.  How does R&D investment affect patent applications and articles published in scientific and technical journals in different countries?
+
+# Stage 2. Analyse an interesting data set (R part)
+
+## Question 1:
+
+Does R&D investment (number of R&D researchers per million people, R&D spending as a share of GDP) in East Asian countries (China, Japan, South Korea) have a significant impact on patent applications related to AI (per million people)?
+
+```{r}
+#| message: false
+east_asia_countries <- c("China", "Japan", "South Korea")
+east_asia_data <- cleaned_data %>%
+  filter(Entity %in% east_asia_countries)
+#x1
+#east_asia_data$RD_spending_proportion
+#x2
+#east_asia_data$researcher_per_million_people
+#y
+#east_asia_data$patent_ai_per_million_people
+```
+
+```{r}
+#| message: false
+#y ~ x1 scatterplot
+ggplot(east_asia_data, aes(x = RD_spending_proportion, 
+                           y = patent_ai_per_million_people,
+                           color= Entity)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, aes(group = Entity)) +
+  labs(title = "AI Patent Applications vs R&D Expenditure (% of GDP)",
+       x = "R&D Expenditure (% of GDP)",
+       y = "AI patent applications（per million people）") +
+  theme_minimal()
+```
+
+The graph shows a positive correlation between R&D expenditure and AI patent applications in China and South Korea.
+
+Countries with higher R&D spending tend to have more AI-related patents
+
+China (Red): Most data points are concentrated in the lower R&D investment range (around 2%-2.5%). AI patent applications are relatively low, though some points show higher values.
+
+Japan (Green): Data points are distributed within the moderate R&D investment range (3.0%-3.5%). AI patent applications appear stable without extreme fluctuations. The situation in Japan is quite unique, as the fitted line shows a negative correlation, which may indicate: There are few data points, which affects the regression results. Japan's AI patent applications may rely more on other factors such as market demand and policy support, rather than just R&D expenditures.
+
+South Korea (Blue): South Korea has the highest R&D investment (above 4%). AI patent applications show greater dispersion, with some points significantly higher than those of China and Japan.
+
+```{r}
+#| message: false
+#y ~ x2 scatterplot
+ggplot(east_asia_data, aes(x = researcher_per_million_people,
+                           y = patent_ai_per_million_people,
+                           color= Entity)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, aes(group = Entity)) +
+  labs(title = "AI Patent Applications vs R&D Researchers (per million people)",
+       x = "R&D Researchers (per million people)",
+       y = "AI patent applications（per million people）") +
+  theme_minimal()
+```
+
+There is a positive correlation between R&D researchers per million people and AI patent applications.
+
+China (Red): Concentrated in the lower range of R&D researchers (below 3,000 per million). AI patent applications remain relatively low but show some increasing trend.
+
+Japan (Green): Positioned in the middle range (around 3,500-5,000 researchers per million). AI patent applications are relatively stable but do not exhibit extreme values.
+
+South Korea (Blue): Has the highest R&D researcher density (above 7,000 per million). Displays a higher variance in AI patent applications, with some significantly high values.
+
+South Korea leads in both R&D researchers and AI patent applications, showcasing a highly productive AI innovation ecosystem. China, despite having the lowest number of researchers per million people, shows a strong positive relationship with AI patents, implying high efficiency or large-scale R&D efforts.
+
+```{r}
+#| message: false
+#y boxplot
+ggplot(east_asia_data, aes(x = Entity, 
+                           y = patent_ai_per_million_people, fill = Entity)) +
+  geom_boxplot(alpha = 0.7) + 
+  labs(title = "Distribution of AI Patent Applications per Million People",
+       x = "Country",
+       y = "AI Patent Applications per Million People") +
+  theme_minimal()
+```
+
+The boxplot shows South Korea exhibits the widest spread in AI patent applications per million people. China and Japan have more compact distributions, suggesting less variation in their AI patent outputs.
+
+South Korea has the largest variability, which suggests that its AI patent production fluctuates significantly over time.
+
+China and Japan have relatively stable distributions, meaning their AI patent outputs are more consistent.
+
+```{r}
+#| message: false
+#summary
+summary(east_asia_data)
+```
+
+## Question 2:
+
+How does R&D investment (number of R&D researchers per million people, R&D spending as a share of GDP) affect patent applications (per million people) and articles published in scientific and technical journals (per million people) in different countries (developed countries, developing countries)?
+
+```{r}
+#| message: false
+#add a new cloumn that reprents the country type: developed countries or developing countries
+cleaned_data <- cleaned_data %>%
+  mutate(Developed_Status = factor(
+    case_when(
+      classification == "High-income countries" ~ "Developed Countries",  # developed countries
+      classification %in% c("Upper-middle-income countries", "Lower-middle-income countries") ~ "Developing Countries"  # developing countries
+    ),
+    levels = c("Developing Countries", "Developed Countries")
+  ))
+
+#x1
+#cleaned_data$researcher_per_million_people
+#x2
+#cleaned_data$RD_spending_proportion
+#x3
+#cleaned_data$Developed_Status
+#y1
+#cleaned_data$article_per_million_people
+#y2
+#cleaned_data$patent_per_million_people
+```
+
+```{r}
+#| message: false
+#y1 ~ x1 scatterplot
+ggplot(cleaned_data, aes(x = researcher_per_million_people, 
+                           y = article_per_million_people,
+                           color= Developed_Status)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + 
+  labs(title = "Articles published (per million people) vs Researchers (per million people)",
+       x = "Researchers (per million people)",
+       y = "Articles published (per million people)",
+       color = "Country Type") +
+  theme_minimal()
+```
+
+The scatterplot effectively shows a **positive correlation** between the number of researchers per million people and the number of published articles per million people.
+
+The **linear trend** suggests that countries with more researchers tend to publish more articles.
+
+Developed countries tend to have more researchers and more published articles than developing countries.
+
+```{r}
+#| message: false
+#y1 ~ x2 scatterplot
+ggplot(cleaned_data, aes(x = RD_spending_proportion, 
+                           y = article_per_million_people,
+                           color= Developed_Status)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + 
+  labs(title = "Articles published (per million people) vs R&D Expenditure (% of GDP)",
+       x = "R&D Expenditure (% of GDP)",
+       y = "Articles published (per million people)",
+       color = "Country Type") +
+  theme_minimal()
+```
+
+This scatterplot shows that there is a **positive correlation** between annual articles published per million people and R&D spending as a share of GDP.
+
+The **linear trend** of this data indicates that more investment in the R&D leads to more published articles.
+
+Developed countries tend to have more R&D investment and more articles published in scientific and technical journals than developing countries.
+
+```{r}
+#| message: false
+#y2 ~ x1 scatterplot
+ggplot(cleaned_data, aes(x = researcher_per_million_people, 
+                           y = patent_per_million_people,
+                           color= Developed_Status)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + 
+  labs(title = "Patent applications (per million people) vs Researchers (per million people)",
+       x = "Researchers (per million people)",
+       y = "Patent applications (per million people)",
+       color = "Country Type") +
+  theme_minimal()
+```
+
+Developing countries tend to have **fewer researchers** and **lower patent applications**, while developed countries show **greater dispersion and higher values.** But the correlation between the two variables is not very clear.
+
+Some developing countries appear to have **higher-than-expected patent applications** given their number of researchers—this could be worth further investigation.
+
+```{r}
+#| message: false
+#y2 ~ x2 scaterplot
+ggplot(cleaned_data, aes(x = RD_spending_proportion, 
+                           y = patent_per_million_people,
+                           color= Developed_Status)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + 
+  labs(title = "Patent applications (per million people) vs R&D Expenditure (% of GDP)",
+       x = "R&D Expenditure (% of GDP)",
+       y = "Patent applications (per million people)",
+       color = "Country Type") +
+  theme_minimal()
+```
+
+Developing countries generally have **lower R&D expenditure** an **lower patent applications**, but some show unexpectedly high patent activity. While developed countries display **greater variation in both R&D spending and patent applications**, with some countries exhibiting a strong innovative output.
+
+```{r}
+#| message: false
+#y1 boxplot
+ggplot(cleaned_data, aes(x = Developed_Status,
+                         y = article_per_million_people, fill = Developed_Status)) +
+  geom_boxplot(alpha = 0.7) + 
+  labs(title = "Distribution of Articles published (per million people)",
+       x = "Country Type",
+       y = "Articles published (per million people)") +
+  theme_minimal()
+```
+
+This plot shows that developed countries have **higher median** and **wider distribution**, while developing countries have **lower** number of published articles.
+
+```{r}
+#| message: false
+#y2 boxplot
+ggplot(cleaned_data, aes(x = Developed_Status,
+                         y = patent_per_million_people, fill = Developed_Status)) +
+  geom_boxplot(alpha = 0.7) + 
+  labs(title = "Distribution of Patent applications (per million people)",
+       x = "Country Type",
+       y = "Patent applications (per million people)") +
+  theme_minimal()
+```
+
+This plot indicates that both developing countries and developed countries have **low level** of patent applications, but developed countries tend to have **larger** number of that.
+
+```{r}
+#| message: false
+#summary
+summary(cleaned_data)
+```
+
+## Export datasets
+
+```{r}
+#| message: false
+write.csv(east_asia_data, "Group_27_Data_1.csv", row.names = FALSE)
+write.csv(cleaned_data, "Group_27_Data_2.csv", row.names = FALSE)
+```
